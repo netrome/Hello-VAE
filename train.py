@@ -11,8 +11,10 @@ import torchvision.transforms as transforms
 import utils
 import networks
 
+BATCH_SIZE = 141
+
 dataset = FashionMNIST("~/BigData/fashion_mnist/", download=True, transform=transforms.ToTensor())
-data_loader = dataloader.DataLoader(dataset, batch_size=141,)
+data_loader = dataloader.DataLoader(dataset, batch_size=BATCH_SIZE,)
 visualizer = utils.Visualizer()
 
 img = dataset[10]
@@ -22,6 +24,12 @@ img = dataset[10]
 encoder = networks.Encoder()
 decoder = networks.Decoder()
 
+# Optimizer
+optimizer = torch.optim.Adam([
+    {'params': encoder.parameters()},
+    {'params': decoder.parameters()}
+])
+
 
 def sample_with_reparametrization_trick(mu, log_var):
     std = log_var.mul(0.5).exp_()
@@ -29,15 +37,31 @@ def sample_with_reparametrization_trick(mu, log_var):
     return eps.mul(std).add_(mu)
 
 
-for i, batch in enumerate(data_loader):
+def loss_VAE(decoded, original, mu, log_var):
+    MSE = torch.mean((decoded - original)**2)
 
-    if i % 100 == 0:
+    KLD = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
+    KLD /= BATCH_SIZE * 784
+    return MSE + KLD
+
+
+for epoch in range(10):
+    for i, batch in enumerate(data_loader):
+
         patterns = Variable(batch[0])
-        print(encoder(patterns))
         encoded = encoder(patterns)
-        print()
-        decoded = decoder(encoded[0])
-        print(F.sigmoid(decoded))
-        visualizer.batch_images(batch[0])
-        break
+        sampled = sample_with_reparametrization_trick(encoded[0], encoded[1])
+        decoded = F.sigmoid(decoder(sampled))
+
+        loss = loss_VAE(decoded, patterns, encoded[0], encoded[1])
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        if i % 100 == 0:
+            print("Loss at {}: {}".format(i, loss))
+
+    visualizer.batch_images(patterns.data, "real")
+    visualizer.batch_images(decoded.data, "fake")
+
 

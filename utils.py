@@ -7,6 +7,6 @@ class Visualizer:
     def __init__(self):
         self.vis = visdom.Visdom()
 
-    def batch_images(self, batch):
-        self.vis.images(batch, win='batch', nrow=16)
+    def batch_images(self, batch, name='batch'):
+        self.vis.images(batch, win=name, nrow=16)
 
